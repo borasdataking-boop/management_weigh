@@ -1,0 +1,205 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+}
+
+enum UserRole {
+  SUPERADMIN
+  COMPANY_ADMIN
+  SCALE_OPERATOR
+  VIEWER
+}
+
+enum DeviceStatus {
+  ONLINE
+  OFFLINE
+  MAINTENANCE
+  ERROR
+}
+
+enum TransactionStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum WeightUnit {
+  KG
+  TON
+  LB
+}
+
+// ==========================================
+// 1. TENANT & RBAC LAYER
+// ==========================================
+
+model Company {
+  id          String        @id @default(uuid()) @db.Uuid
+  code        String        @unique @db.VarChar(50) // E.g., 'CP-LOGISTICS', 'HOAPHAT-STEEL'
+  name        String        @db.VarChar(255)
+  status      CompanyStatus @default(ACTIVE)
+  maxHubs     Int           @default(5)
+  contactEmail String?      @db.VarChar(255)
+  contactPhone String?      @db.VarChar(50)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  // Relationships
+  users             User[]
+  hubs              Hub[]
+  scales            Scale[]
+  scaleTransactions ScaleTransaction[]
+  auditLogs         AuditLog[]
+
+  @@map("companies")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String?   @map("company_id") @db.Uuid // Nullable for Platform Superadmin
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  fullName     String    @map("full_name") @db.VarChar(100)
+  role         UserRole  @default(VIEWER)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  company   Company?   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  auditLogs AuditLog[]
+
+  @@index([companyId])
+  @@index([role])
+  @@map("users")
+}
+
+// ==========================================
+// 2. EDGE HUB & SCALE DEVICE LAYER
+// ==========================================
+
+model Hub {
+  id              String       @id @default(uuid()) @db.Uuid
+  companyId       String       @map("company_id") @db.Uuid
+  code            String       @unique @db.VarChar(50) // Unique hardware/serial code e.g. 'HUB-HANOI-01'
+  name            String       @db.VarChar(150)
+  secretKeyHash   String       @map("secret_key_hash") @db.VarChar(255) // For mTLS or HMAC auth
+  ipAddress       String?      @map("ip_address") @db.VarChar(45) // IPv4 or IPv6
+  status          DeviceStatus @default(OFFLINE)
+  lastHeartbeat   DateTime?    @map("last_heartbeat")
+  firmwareVersion String?      @map("firmware_version") @db.VarChar(50)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  // Relationships
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  scales  Scale[]
+
+  @@index([companyId])
+  @@index([status])
+  @@map("hubs")
+}
+
+model Scale {
+  id             String       @id @default(uuid()) @db.Uuid
+  companyId      String       @map("company_id") @db.Uuid
+  hubId          String       @map("hub_id") @db.Uuid
+  code           String       @db.VarChar(50) // e.g. 'SCALE-01'
+  name           String       @db.VarChar(150)
+  indicatorModel String       @map("indicator_model") @db.VarChar(100) // e.g. 'Yaohua-A12E', 'Toledo-T800', 'Keli-XK3118'
+  maxCapacity    Float        @map("max_capacity") // e.g., 80000 (80 Tons)
+  divisionStep   Float        @default(10) @map("division_step") // Division 'd' e.g. 10kg, 20kg
+  unit           WeightUnit   @default(KG)
+  baudRate       Int          @default(9600) @map("baud_rate")
+  portName       String       @default("COM1") @map("port_name") @db.VarChar(50) // e.g., '/dev/ttyUSB0' or 'COM1'
+  overloadLimit  Float?       @map("overload_limit") // Capacity + allowed margin
+  status         DeviceStatus @default(OFFLINE)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  // Relationships
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  hub          Hub                @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  transactions ScaleTransaction[]
+
+  @@unique([hubId, code])
+  @@index([companyId])
+  @@index([hubId])
+  @@map("scales")
+}
+
+// ==========================================
+// 3. TICKETING & TRANSACTION LAYER
+// ==========================================
+
+model ScaleTransaction {
+  id                String            @id @default(uuid()) @db.Uuid
+  companyId         String            @map("company_id") @db.Uuid
+  scaleId           String            @map("scale_id") @db.Uuid
+  transactionUuid   String            @unique @map("transaction_uuid") @db.VarChar(64) // Idempotency key from Edge Hub
+  ticketNumber      String            @map("ticket_number") @db.VarChar(50) // Human readable e.g., 'TKT-20261012-0001'
+  vehiclePlate      String            @map("vehicle_plate") @db.VarChar(30)
+  driverName        String?           @map("driver_name") @db.VarChar(100)
+  customerName      String?           @map("customer_name") @db.VarChar(150)
+  productType       String?           @map("product_type") @db.VarChar(100)
+  grossWeight       Float             @map("gross_weight") // Trọng lượng tổng (xe + hàng)
+  tareWeight        Float             @map("tare_weight") // Trọng lượng bì (xe rỗng)
+  netWeight         Float             @map("net_weight") // Trọng lượng hàng ròng = |gross - tare|
+  unit              WeightUnit        @default(KG)
+  status            TransactionStatus @default(COMPLETED)
+  capturedImageUrls String[]          @default([]) @map("captured_image_urls") // Snapshots from IP camera at weighbridge
+  syncedFromOffline Boolean           @default(false) @map("synced_from_offline")
+  weighedAt         DateTime          @default(now()) @map("weighed_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  // Relationships
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  scale   Scale   @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, ticketNumber])
+  @@index([companyId])
+  @@index([scaleId])
+  @@index([vehiclePlate])
+  @@index([createdAt])
+  @@map("scale_transactions")
+}
+
+// ==========================================
+// 4. AUDIT LOG & COMPLIANCE LAYER
+// ==========================================
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String?  @map("company_id") @db.Uuid // Nullable if system-level
+  userId    String?  @map("user_id") @db.Uuid
+  action    String   @db.VarChar(100) // E.g., 'TICKET_CREATE', 'CALIBRATION_UPDATE', 'HUB_REBOOT'
+  target    String   @db.VarChar(100) // E.g., 'ScaleTransaction:UUID', 'Hub:01'
+  metadata  Json?    @db.JsonB
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([action])
+  @@map("audit_logs")
+}

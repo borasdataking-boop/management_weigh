@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # PostgreSQL (Primary Relational Database)
+  # ==========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: weighstation-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: scale_admin
+      POSTGRES_PASSWORD: scale_secret_pass
+      POSTGRES_DB: weighstation_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scale_admin -d weighstation_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - weighstation-network
+
+  # ==========================================
+  # Redis (Cache, Pub/Sub & Heartbeat Monitor)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: weighstation-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - weighstation-network
+
+  # ==========================================
+  # EMQX Broker (MQTT & MQTTS Broker for Hubs)
+  # ==========================================
+  emqx:
+    image: emqx/emqx:5.8.0
+    container_name: weighstation-emqx
+    restart: unless-stopped
+    environment:
+      EMQX_NODE__NAME: emqx@node1.emqx.io
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: public_admin_emqx
+    ports:
+      - "1883:1883"     # MQTT Plaintext port
+      - "8883:8883"     # MQTTS (SSL/TLS) port
+      - "8083:8083"     # MQTT over WebSocket
+      - "8084:8084"     # MQTT over WSS (Secure WebSocket)
+      - "18083:18083"   # EMQX Management Dashboard UI
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - weighstation-network
+
+  # ==========================================
+  # Mailpit (Local SMTP Testing Service)
+  # ==========================================
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: weighstation-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"     # SMTP port
+      - "8025:8025"     # Web UI dashboard
+    networks:
+      - weighstation-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  emqx_data:
+    driver: local
+  emqx_log:
+    driver: local
+
+networks:
+  weighstation-network:
+    driver: bridge
