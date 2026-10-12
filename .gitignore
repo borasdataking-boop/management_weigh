@@ -1,0 +1,13 @@
+# Tệp môi trường nhạy cảm
+.env
+.env.*
+
+# Thư mục phụ thuộc / build (nếu có dùng sau này)
+node_modules/
+dist/
+__pycache__/
+
+# Log & OS
+*.log
+.DS_Store
+Thumbs.db
