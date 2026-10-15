@@ -38,7 +38,10 @@ export const WIPFlowChart: React.FC<WIPFlowChartProps> = ({ processes }) => {
   const chartData = filteredProcesses.map((p) => ({
     name: p.processId,
     fullName: p.processName,
-    station: p.stationName,
+    station:
+      p.stations && p.stations.length > 0
+        ? p.stations.map((s) => s.stationName).join(', ')
+        : p.stationName || '',
     weightIn: p.weightIn,
     weightOut: p.weightOut,
     wipWeight: p.wipWeight,
@@ -103,7 +106,15 @@ export const WIPFlowChart: React.FC<WIPFlowChartProps> = ({ processes }) => {
 
       {/* Vùng biểu đồ */}
       <div className="w-full h-72">
-        {isMounted ? (
+        {!isMounted ? (
+          <div className="w-full h-full flex items-center justify-center bg-slate-50 rounded text-xs text-slate-400 font-mono">
+            Đang tải dữ liệu biểu đồ...
+          </div>
+        ) : processes.length === 0 ? (
+          <div className="w-full h-full flex items-center justify-center bg-slate-50 rounded text-xs text-slate-500">
+            Chưa có công đoạn nào trong quy trình. Vui lòng thêm công đoạn mới.
+          </div>
+        ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={chartData}
@@ -126,33 +137,38 @@ export const WIPFlowChart: React.FC<WIPFlowChartProps> = ({ processes }) => {
                 tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
               />
               <Tooltip
-                content={({ active, payload, label }) => {
-                  if (active && payload && payload.length) {
+                content={({ active, label }) => {
+                  if (active && label) {
                     const item = processes.find((p) => p.processId === label);
+                    if (!item) return null;
                     return (
                       <div className="bg-slate-900 text-slate-100 p-3 rounded shadow-lg text-xs space-y-1.5 border border-slate-800 min-w-[200px]">
                         <div className="flex items-center justify-between pb-1 border-b border-slate-800 font-mono">
                           <span className="font-bold text-slate-100">{label}</span>
-                          <span className="text-[11px] text-slate-400">{item?.stationName}</span>
+                          <span className="text-[11px] text-slate-400 truncate max-w-[140px]">
+                            {item.stations && item.stations.length > 0
+                              ? item.stations.map((s) => s.stationName).join(', ')
+                              : item.stationName || ''}
+                          </span>
                         </div>
-                        <p className="text-slate-300">{item?.processName}</p>
+                        <p className="text-slate-300 font-medium">{item.processName}</p>
                         <div className="space-y-1 pt-1 font-mono text-[11px]">
                           <div className="flex justify-between">
                             <span className="text-slate-400">Vào:</span>
                             <span className="font-medium text-slate-100">
-                              {formatNumber(Number(payload[0]?.value))} kg
+                              {formatNumber(item.weightIn)} kg
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400">Ra:</span>
                             <span className="font-medium text-slate-100">
-                              {formatNumber(Number(payload[1]?.value))} kg
+                              {formatNumber(item.weightOut)} kg
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400">Đang xử lý:</span>
                             <span className="font-medium text-slate-100">
-                              {formatNumber(Number(payload[2]?.value))} kg
+                              {formatNumber(item.wipWeight)} kg
                             </span>
                           </div>
                         </div>
@@ -167,10 +183,6 @@ export const WIPFlowChart: React.FC<WIPFlowChartProps> = ({ processes }) => {
               <Bar dataKey="wipWeight" name="Đang xử lý" fill="#cbd5e1" radius={[2, 2, 0, 0]} maxBarSize={16} />
             </BarChart>
           </ResponsiveContainer>
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-slate-50 rounded text-xs text-slate-400 font-mono">
-            Đang tải dữ liệu biểu đồ...
-          </div>
         )}
       </div>
     </div>
