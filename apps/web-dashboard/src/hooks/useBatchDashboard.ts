@@ -7,6 +7,10 @@ import {
   BatchKPIResponse,
   LiveWeighEvent,
   CompanyItem,
+  ProcessFlowItem,
+  WorkflowDefinition,
+  CreateWorkflowDto,
+  UpdateWorkflowDto,
 } from '../types/batch-flow';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -102,7 +106,11 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationName: 'Trạm cân Tiếp nhận 01',
       indicatorModel: 'DINI ARGEO',
       productType: 'Tôm nguyên liệu (TOM001)',
+      products: [
+        { productId: 'TOM001', productName: 'Tôm nguyên liệu tươi (Sú/Thẻ)' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD002'],
       weightIn: 9500,
       weightOut: 9300,
       wipWeight: 200,
@@ -116,7 +124,16 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationName: 'Trạm cân Phân cỡ 02',
       indicatorModel: 'DINI ARGEO',
       productType: 'Bán thành phẩm (TOM002)',
+      products: [
+        { productId: 'TOM_10_15', productName: 'Tôm cỡ 10-15' },
+        { productId: 'TOM_15_20', productName: 'Tôm cỡ 15-20' },
+        { productId: 'TOM_20_25', productName: 'Tôm cỡ 20-25' },
+        { productId: 'TOM_25_30', productName: 'Tôm cỡ 25-30' },
+        { productId: 'TOM_30_40', productName: 'Tôm cỡ 30-40' },
+        { productId: 'TOM_DAT', productName: 'Tôm dạt / phế phẩm' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD003', 'CD004', 'CD006', 'CD009', 'CD010'],
       weightIn: 9300,
       weightOut: 9100,
       wipWeight: 200,
@@ -129,7 +146,12 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationId: '10244158',
       stationName: 'Trạm cân Xếp khuôn 03',
       indicatorModel: 'DINI ARGEO',
+      products: [
+        { productId: 'KHUON_1.8KG', productName: 'Khuôn tôm 1.8kg' },
+        { productId: 'KHUON_2KG', productName: 'Khuôn tôm 2kg' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD012', 'CD014'],
       weightIn: 9100,
       weightOut: 9000,
       wipWeight: 100,
@@ -142,7 +164,13 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationId: '10244159',
       stationName: 'Trạm cân Bóc vỏ 04',
       indicatorModel: 'DINI ARGEO',
+      products: [
+        { productId: 'TOM_PTO', productName: 'Tôm PTO còn đuôi' },
+        { productId: 'TOM_PD', productName: 'Tôm PD bóc nõn rút chỉ' },
+        { productId: 'TOM_HLSO', productName: 'Tôm HLSO vặt đầu' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD005', 'CD006'],
       weightIn: 9000,
       weightOut: 8600,
       wipWeight: 400,
@@ -155,7 +183,12 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationId: '10244160',
       stationName: 'Trạm cân Ngâm phụ gia 05',
       indicatorModel: 'DINI ARGEO',
+      products: [
+        { productId: 'TOM_NGAM_NON_PHOS', productName: 'Tôm ngâm Non-Phosphate' },
+        { productId: 'TOM_NGAM_TC', productName: 'Tôm ngâm Tiêu chuẩn' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD006', 'CD007', 'CD009'],
       weightIn: 8600,
       weightOut: 8400,
       wipWeight: 200,
@@ -168,7 +201,13 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationId: '10244161',
       stationName: 'Trạm cân Định hình 06',
       indicatorModel: 'DINI ARGEO',
+      products: [
+        { productId: 'NOBASHI_25C', productName: 'Tôm Nobashi 25 con/khay' },
+        { productId: 'NOBASHI_30C', productName: 'Tôm Nobashi 30 con/khay' },
+        { productId: 'BUTTERFLY_EU', productName: 'Tôm Butterfly xẻ bướm' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD007', 'CD012', 'CD014'],
       weightIn: 3000,
       weightOut: 2900,
       wipWeight: 100,
@@ -181,7 +220,12 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationId: '10244162',
       stationName: 'Trạm cân Tẩm bột 07',
       indicatorModel: 'DINI ARGEO',
+      products: [
+        { productId: 'BREADED_WHITE', productName: 'Tôm tẩm bột trắng' },
+        { productId: 'BREADED_PANKO', productName: 'Tôm tẩm bột xù Panko' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD008', 'CD013'],
       weightIn: 1500,
       weightOut: 1450,
       wipWeight: 50,
@@ -194,7 +238,11 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationId: '10244163',
       stationName: 'Trạm cân Chiên 08',
       indicatorModel: 'DINI ARGEO',
+      products: [
+        { productId: 'FRIED_TORPEDO', productName: 'Tôm chiên Torpedo giòn' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD013'],
       weightIn: 1450,
       weightOut: 1400,
       wipWeight: 50,
@@ -207,7 +255,11 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationId: '10244164',
       stationName: 'Trạm cân Nấu PD 09',
       indicatorModel: 'DINI ARGEO',
+      products: [
+        { productId: 'COOKED_PD', productName: 'Tôm PD chín' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD011', 'CD015'],
       weightIn: 2500,
       weightOut: 2300,
       wipWeight: 200,
@@ -220,7 +272,11 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationId: '10244165',
       stationName: 'Trạm cân Nấu HLSO 10',
       indicatorModel: 'DINI ARGEO',
+      products: [
+        { productId: 'COOKED_HLSO', productName: 'Tôm HLSO chín' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD015'],
       weightIn: 1500,
       weightOut: 1400,
       wipWeight: 100,
@@ -234,7 +290,11 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationName: 'Trạm cân Tách vỏ 11',
       indicatorModel: 'DINI ARGEO',
       productType: 'Thành phẩm sau nấu',
+      products: [
+        { productId: 'TACH_VO_SALAD', productName: 'Tôm nõn chín làm salad' },
+      ],
       isFinalOutput: false,
+      nextProcessIds: ['CD015'],
       weightIn: 3700,
       weightOut: 3500,
       wipWeight: 200,
@@ -248,7 +308,12 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationName: 'Trạm cân Xoắn tươi 12',
       indicatorModel: 'DINI ARGEO',
       productType: 'Thành phẩm đóng gói',
+      products: [
+        { productId: 'TP_XOAN_1KG', productName: 'Tôm xoắn tươi đông gói 1kg', isEnd: true },
+        { productId: 'TP_XOAN_500G', productName: 'Tôm xoắn tươi đông gói 500g', isEnd: true },
+      ],
       isFinalOutput: true,
+      nextProcessIds: [],
       weightIn: 1400,
       weightOut: 1000,
       wipWeight: 400,
@@ -262,7 +327,11 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationName: 'Trạm cân Xoắn chiên 13',
       indicatorModel: 'DINI ARGEO',
       productType: 'Thành phẩm đóng gói',
+      products: [
+        { productId: 'TP_CHIEN_HOP', productName: 'Tôm chiên đông hộp 300g', isEnd: true },
+      ],
       isFinalOutput: true,
+      nextProcessIds: [],
       weightIn: 1400,
       weightOut: 1100,
       wipWeight: 300,
@@ -276,7 +345,12 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationName: 'Trạm cân IQF tươi 14',
       indicatorModel: 'DINI ARGEO',
       productType: 'Thành phẩm đóng gói',
+      products: [
+        { productId: 'TP_IQF_TUSI', productName: 'Tôm IQF tươi mạ băng 10%', isEnd: true },
+        { productId: 'TP_IQF_TUSI_20', productName: 'Tôm IQF tươi mạ băng 20%', isEnd: true },
+      ],
       isFinalOutput: true,
+      nextProcessIds: [],
       weightIn: 1500,
       weightOut: 800,
       wipWeight: 700,
@@ -290,7 +364,12 @@ export const DEFAULT_PMSL_METRICS: BatchKPIResponse = {
       stationName: 'Trạm cân IQF chín 15',
       indicatorModel: 'DINI ARGEO',
       productType: 'Thành phẩm đóng gói',
+      products: [
+        { productId: 'TP_IQF_CHIN_1KG', productName: 'Tôm IQF chín gói 1kg', isEnd: true },
+        { productId: 'TP_IQF_CHIN_RING', productName: 'Vòng tôm luộc Shrimp Ring kèm sốt', isEnd: true },
+      ],
       isFinalOutput: true,
+      nextProcessIds: [],
       weightIn: 3500,
       weightOut: 1200,
       wipWeight: 2300,
@@ -408,6 +487,7 @@ export function useBatchDashboard(options?: string | UseBatchDashboardOptions) {
   useEffect(() => {
     fetchCompanies();
     fetchBatches();
+    fetchWorkflows();
     fetchSummary(selectedBatchIdRef.current);
 
     const socket: Socket = io(`${API_BASE}/batch-flow`, {
@@ -503,6 +583,359 @@ export function useBatchDashboard(options?: string | UseBatchDashboardOptions) {
     }
   };
 
+  // 9. Process Node & Station Management APIs
+  const createProcess = async (dto: any) => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API_BASE}/api/processes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      if (res.ok) {
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to create process:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateProcess = async (processId: string, dto: any) => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API_BASE}/api/processes/${processId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      if (res.ok) {
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to update process:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteProcess = async (processId: string) => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API_BASE}/api/processes/${processId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to delete process:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const reorderProcesses = async (processIds: string[]) => {
+    // 1. Optimistic update local state immediately
+    setMetrics((prev) => {
+      const pMap = new Map(prev.processes.map((p) => [p.processId, p]));
+      const newProcesses: ProcessFlowItem[] = [];
+      for (const id of processIds) {
+        const item = pMap.get(id);
+        if (item) {
+          newProcesses.push(item);
+          pMap.delete(id);
+        }
+      }
+      pMap.forEach((item) => {
+        newProcesses.push(item);
+      });
+      return {
+        ...prev,
+        processes: newProcesses,
+      };
+    });
+
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API_BASE}/api/processes/reorder`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ processIds }),
+      });
+      if (res.ok) {
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to reorder processes:', err);
+      await fetchSummary(selectedBatchId);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const addStationToProcess = async (processId: string, dto: any) => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API_BASE}/api/processes/${processId}/stations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      if (res.ok) {
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to add station:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteStationFromProcess = async (processId: string, stationId: string) => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(
+        `${API_BASE}/api/processes/${processId}/stations/${stationId}`,
+        { method: 'DELETE' },
+      );
+      if (res.ok) {
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to delete station:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const addProductToProcess = async (processId: string, dto: any) => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API_BASE}/api/processes/${processId}/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      if (res.ok) {
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to add product:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteProductFromProcess = async (processId: string, productId: string) => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(
+        `${API_BASE}/api/processes/${processId}/products/${productId}`,
+        { method: 'DELETE' },
+      );
+      if (res.ok) {
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to delete product:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateProcessMappings = async (
+    processId: string,
+    nextProcessIds: string[],
+  ): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      const activeWfId = metrics.activeWorkflow?.id || metrics.batch?.workflowId;
+      const url = activeWfId
+        ? `${API_BASE}/api/processes/${processId}/mappings?workflowId=${activeWfId}`
+        : `${API_BASE}/api/processes/${processId}/mappings`;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nextProcessIds }),
+      });
+      if (res.ok) {
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to update process mappings:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveBulkProcesses = async (
+    processes: ProcessFlowItem[],
+  ): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      const activeWfId = metrics.activeWorkflow?.id || metrics.batch?.workflowId;
+      const url = activeWfId
+        ? `${API_BASE}/api/processes/bulk?workflowId=${activeWfId}`
+        : `${API_BASE}/api/processes/bulk`;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ processes }),
+      });
+      if (res.ok) {
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Không thể lưu danh mục quy trình');
+    } catch (err: any) {
+      console.error('Failed to save bulk processes:', err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 10. Multi-Workflow Management APIs
+  const [workflowsList, setWorkflowsList] = useState<WorkflowDefinition[]>([]);
+
+  const fetchWorkflows = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/workflows`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setWorkflowsList(data);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch workflows:', err);
+    }
+  }, []);
+
+  const selectWorkflow = async (workflowId: string): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(
+        `${API_BASE}/api/workflows/${workflowId}/assign-batch/${selectedBatchId}`,
+        { method: 'POST' },
+      );
+      if (res.ok) {
+        const data: BatchKPIResponse = await res.json();
+        setMetrics(data);
+        await fetchWorkflows();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to select workflow:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const createWorkflow = async (
+    dto: CreateWorkflowDto,
+  ): Promise<WorkflowDefinition | null> => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API_BASE}/api/workflows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      if (res.ok) {
+        const newWf: WorkflowDefinition = await res.json();
+        await fetchWorkflows();
+        if (newWf && newWf.id) {
+          await selectWorkflow(newWf.id);
+        }
+        return newWf;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to create workflow:', err);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateWorkflow = async (
+    workflowId: string,
+    dto: UpdateWorkflowDto,
+  ): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API_BASE}/api/workflows/${workflowId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      if (res.ok) {
+        await fetchWorkflows();
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to update workflow:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteWorkflow = async (workflowId: string): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API_BASE}/api/workflows/${workflowId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        await fetchWorkflows();
+        await fetchSummary(selectedBatchId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to delete workflow:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Filter batches for current active company
   const activeCompanyId = fixedCompanyId || selectedCompanyId;
   const filteredBatches = allBatches.filter(
@@ -511,6 +944,17 @@ export function useBatchDashboard(options?: string | UseBatchDashboardOptions) {
 
   const currentCompany =
     companies.find((c) => c.id === activeCompanyId) || companies[0];
+
+  const availableWorkflows =
+    metrics.workflows && metrics.workflows.length > 0
+      ? metrics.workflows
+      : workflowsList;
+
+  const currentWorkflow =
+    metrics.activeWorkflow ||
+    availableWorkflows.find((w) => w.id === metrics.batch?.workflowId) ||
+    availableWorkflows[0] ||
+    null;
 
   return {
     isSuperAdmin: !fixedCompanyId,
@@ -522,6 +966,13 @@ export function useBatchDashboard(options?: string | UseBatchDashboardOptions) {
     allBatches,
     selectedBatchId,
     selectBatch,
+    workflows: availableWorkflows,
+    activeWorkflow: currentWorkflow,
+    fetchWorkflows,
+    selectWorkflow,
+    createWorkflow,
+    updateWorkflow,
+    deleteWorkflow,
     metrics,
     recentEvent,
     isLoading,
@@ -530,5 +981,17 @@ export function useBatchDashboard(options?: string | UseBatchDashboardOptions) {
     toggleSimulator,
     triggerManualTick,
     refreshSummary: () => fetchSummary(selectedBatchId),
+    createProcess,
+    updateProcess,
+    deleteProcess,
+    reorderProcesses,
+    addStationToProcess,
+    deleteStationFromProcess,
+    addProductToProcess,
+    deleteProductFromProcess,
+    updateProcessMappings,
+    saveBulkProcesses,
   };
 }
+
+

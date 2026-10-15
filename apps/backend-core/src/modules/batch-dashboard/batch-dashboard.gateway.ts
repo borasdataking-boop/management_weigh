@@ -40,6 +40,15 @@ export class BatchDashboardGateway
         });
       },
     );
+
+    // Hook up snapshot broadcaster when process or station catalog changes
+    this.dashboardService.setSnapshotBroadcaster(
+      (batchId: string, data: BatchKPIResponse) => {
+        if (!this.server) return;
+        const room = `batch:${batchId}`;
+        this.server.to(room).emit('batch_snapshot', data);
+      },
+    );
   }
 
   handleConnection(client: Socket) {
