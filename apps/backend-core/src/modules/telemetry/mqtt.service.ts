@@ -3,10 +3,17 @@ import {
   OnModuleInit,
   OnModuleDestroy,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import * as mqtt from 'mqtt';
 import { Subject, Observable } from 'rxjs';
-import { ScaleTelemetryPayload, HubHeartbeatPayload } from '@industrial-scale/types';
+import {
+  ScaleTelemetryPayload,
+  HubHeartbeatPayload,
+  RecordWeighLogDto,
+} from '@industrial-scale/types';
+import { BatchDashboardService } from '../batch-dashboard/batch-dashboard.service';
 
 @Injectable()
 export class MqttService implements OnModuleInit, OnModuleDestroy {
@@ -16,6 +23,11 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   // RxJS Streams for Telemetry and Heartbeat events
   private readonly telemetrySubject = new Subject<ScaleTelemetryPayload>();
   private readonly heartbeatSubject = new Subject<HubHeartbeatPayload>();
+
+  constructor(
+    @Inject(forwardRef(() => BatchDashboardService))
+    private readonly batchDashboardService?: BatchDashboardService,
+  ) {}
 
   get telemetry$(): Observable<ScaleTelemetryPayload> {
     return this.telemetrySubject.asObservable();
@@ -37,24 +49,32 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
       password,
       clientId: `backend_core_${Math.random().toString(16).slice(2, 8)}`,
       clean: true,
-      reconnectPeriod: 3000,
+      reconnectPeriod: 5000,
     });
 
     this.client.on('connect', () => {
       this.logger.log('Connected successfully to EMQX Broker.');
-      
-      // Subscribe to all tenant telemetry & heartbeats
-      // Topic schema:
-      // Telemetry: tenants/{companyId}/hubs/{hubId}/scales/{scaleId}/telemetry
-      // Heartbeat: tenants/{companyId}/hubs/{hubId}/heartbeat
+
+      // 1. Telemetry & Heartbeat topics
       const telemetryPattern = 'tenants/+/hubs/+/scales/+/telemetry';
       const heartbeatPattern = 'tenants/+/hubs/+/heartbeat';
 
-      this.client.subscribe([telemetryPattern, heartbeatPattern], (err) => {
+      // 2. PMSL Weigh Station topics (real-time weigh events from scales)
+      const pmslStationWeightPattern = 'pmsl/stations/+/weight';
+      const pmslGeneralWeightPattern = 'pmsl/weight';
+
+      const patterns = [
+        telemetryPattern,
+        heartbeatPattern,
+        pmslStationWeightPattern,
+        pmslGeneralWeightPattern,
+      ];
+
+      this.client.subscribe(patterns, (err) => {
         if (err) {
           this.logger.error(`Failed to subscribe to MQTT patterns: ${err.message}`);
         } else {
-          this.logger.log(`Subscribed to [${telemetryPattern}, ${heartbeatPattern}]`);
+          this.logger.log(`Subscribed to PMSL MQTT patterns: [${patterns.join(', ')}]`);
         }
       });
     });
@@ -64,14 +84,29 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.client.on('error', (err) => {
-      this.logger.error(`EMQX Connection Error: ${err.message}`);
+      // Log connection error without crashing
+      this.logger.warn(`EMQX Connection: ${err.message}`);
     });
   }
 
-  private handleIncomingMessage(topic: string, message: Buffer) {
+  private async handleIncomingMessage(topic: string, message: Buffer) {
     try {
       const payloadString = message.toString();
       const data = JSON.parse(payloadString);
+
+      // Check if it's a PMSL Production Weight Log event
+      if (
+        topic.startsWith('pmsl/') ||
+        topic.endsWith('/weight') ||
+        topic.endsWith('/weigh')
+      ) {
+        if (this.batchDashboardService && data.batchId && data.stationId) {
+          await this.batchDashboardService.recordWeighLog(
+            data as RecordWeighLogDto,
+          );
+        }
+        return;
+      }
 
       if (topic.endsWith('/telemetry')) {
         this.telemetrySubject.next(data as ScaleTelemetryPayload);
@@ -79,7 +114,9 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         this.heartbeatSubject.next(data as HubHeartbeatPayload);
       }
     } catch (error) {
-      this.logger.warn(`Failed to parse incoming MQTT payload on topic ${topic}: ${error.message}`);
+      this.logger.warn(
+        `Failed to parse incoming MQTT payload on topic ${topic}: ${error.message}`,
+      );
     }
   }
 

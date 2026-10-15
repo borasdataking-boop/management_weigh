@@ -1,134 +1,107 @@
 'use client';
 
 import React from 'react';
+import { Target, CheckCircle2, Layers, Clock } from 'lucide-react';
 import { BatchKPIResponse } from '../types/batch-flow';
+import { formatNumber, formatPct } from '../lib/formatters';
 
 interface BatchKPICardsProps {
   metrics: BatchKPIResponse;
 }
 
+interface MetricCardConfig {
+  id: string;
+  label: string;
+  value: number;
+  pct?: number;
+  subText: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
 export const BatchKPICards: React.FC<BatchKPICardsProps> = ({ metrics }) => {
+  const cards: MetricCardConfig[] = [
+    {
+      id: 'plan',
+      label: 'Kế hoạch',
+      value: metrics.planWeight,
+      subText: `Mẻ: ${metrics.batch.id}`,
+      icon: Target,
+    },
+    {
+      id: 'completed',
+      label: 'Hoàn thành',
+      value: metrics.completedWeight,
+      pct: metrics.completedPct,
+      subText: 'Đầu ra công đoạn cuối',
+      icon: CheckCircle2,
+    },
+    {
+      id: 'wip',
+      label: 'Đang xử lý (WIP)',
+      value: metrics.totalWipWeight,
+      pct: metrics.totalWipPct,
+      subText: 'Trên các công đoạn',
+      icon: Layers,
+    },
+    {
+      id: 'remaining',
+      label: 'Còn lại',
+      value: metrics.remainingWeight,
+      pct: metrics.remainingPct,
+      subText: 'Chưa hoàn thành',
+      icon: Clock,
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-      {/* Card 1: Kế hoạch Lô */}
-      <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">
-            Kế hoạch Lô (Target)
-          </span>
-          <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-base">
-            🎯
-          </div>
-        </div>
-        <div className="mt-4">
-          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            {metrics.planWeight.toLocaleString()} <span className="text-sm font-semibold text-slate-400">kg</span>
-          </div>
-          <p className="text-xs font-medium text-slate-500 mt-1">
-            Tổng định mức sản xuất (100%)
-          </p>
-        </div>
-        <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between text-xs text-slate-400">
-          <span>Lô: {metrics.batch.id}</span>
-          <span className="font-semibold text-blue-600">Chuẩn hóa</span>
-        </div>
-      </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {cards.map((card) => {
+        const Icon = card.icon;
 
-      {/* Card 2: Đã hoàn thành */}
-      <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold tracking-wider text-emerald-600 uppercase font-bold">
-            Đã hoàn thành
-          </span>
-          <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base">
-            ✅
-          </div>
-        </div>
-        <div className="mt-4">
-          <div className="text-2xl sm:text-3xl font-extrabold text-emerald-600 tracking-tight">
-            {metrics.completedWeight.toLocaleString()} <span className="text-sm font-semibold text-slate-400">kg</span>
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-emerald-500 h-2 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${Math.min(100, metrics.completedPct)}%` }}
-              />
-            </div>
-            <span className="text-xs font-bold text-emerald-600 shrink-0">
-              {metrics.completedPct}%
-            </span>
-          </div>
-        </div>
-        <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between text-xs text-slate-400">
-          <span>4 Trạm Cấp Đông cuối</span>
-          <span className="font-semibold text-emerald-600">ST12-15 OUT</span>
-        </div>
-      </div>
+        return (
+          <div
+            key={card.id}
+            className="bg-white rounded-md border border-slate-200 p-4 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                  {card.label}
+                </span>
+                <Icon className="w-4 h-4 text-slate-400" />
+              </div>
 
-      {/* Card 3: WIP dở dang */}
-      <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold tracking-wider text-amber-600 uppercase font-bold">
-            WIP dở dang
-          </span>
-          <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-base">
-            ⚙️
-          </div>
-        </div>
-        <div className="mt-4">
-          <div className="text-2xl sm:text-3xl font-extrabold text-amber-600 tracking-tight">
-            {metrics.totalWipWeight.toLocaleString()} <span className="text-sm font-semibold text-slate-400">kg</span>
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-amber-500 h-2 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${Math.min(100, metrics.totalWipPct)}%` }}
-              />
-            </div>
-            <span className="text-xs font-bold text-amber-600 shrink-0">
-              {metrics.totalWipPct}%
-            </span>
-          </div>
-        </div>
-        <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between text-xs text-slate-400">
-          <span>Đọng trên 15 trạm cân</span>
-          <span className="font-semibold text-amber-600">IN - OUT</span>
-        </div>
-      </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+                  {formatNumber(card.value)}
+                </span>
+                <span className="text-xs text-slate-500">kg</span>
+              </div>
 
-      {/* Card 4: Còn lại */}
-      <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold tracking-wider text-purple-600 uppercase font-bold">
-            Còn lại
-          </span>
-          <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-base">
-            ⏳
-          </div>
-        </div>
-        <div className="mt-4">
-          <div className="text-2xl sm:text-3xl font-extrabold text-purple-700 tracking-tight">
-            {metrics.remainingWeight.toLocaleString()} <span className="text-sm font-semibold text-slate-400">kg</span>
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-purple-500 h-2 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${Math.min(100, metrics.remainingPct)}%` }}
-              />
+              {card.pct !== undefined ? (
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">{card.subText}</span>
+                    <span className="font-mono font-medium text-slate-700">
+                      {formatPct(card.pct)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="h-full bg-slate-800 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(0, card.pct))}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-slate-500">
+                  {card.subText}
+                </p>
+              )}
             </div>
-            <span className="text-xs font-bold text-purple-600 shrink-0">
-              {metrics.remainingPct}%
-            </span>
           </div>
-        </div>
-        <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between text-xs text-slate-400">
-          <span>Chưa xuất thành phẩm</span>
-          <span className="font-semibold text-purple-600">Kế hoạch - Đã xong</span>
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 };

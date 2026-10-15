@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Hệ Thống Giám Sát Cân Công Nghiệp Đa Tầng',
-  description: 'Industrial Multi-Tenant Scale IoT System - Real-time WIP Flow Dashboard',
+  title: 'Hệ Thống Cân',
+  description: 'Hệ Thống Cân',
 };
 
 export default function RootLayout({

@@ -1,16 +1,25 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import {
   Batch,
   ProcessFlowItem,
   BatchKPIResponse,
   LiveWeighEvent,
+  RecordWeighLogDto,
 } from './batch-dashboard.interface';
+import { CompanyItem, HubItem } from '@industrial-scale/types';
+import { PrismaService } from '../../common/prisma/prisma.service';
 
 interface ProcessTemplate {
   processId: string;
   processName: string;
   stationId: string;
   stationName: string;
+  indicatorModel: string;
   productType?: string;
   isFinalOutput: boolean;
   defaultIn: number;
@@ -18,148 +27,203 @@ interface ProcessTemplate {
 }
 
 @Injectable()
-export class BatchDashboardService {
+export class BatchDashboardService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(BatchDashboardService.name);
+  private isDbAvailable = false;
 
-  // In-memory definition of 15 processes
+  // Danh mục Công ty Khách hàng (Superadmin quản lý)
+  private readonly companies: CompanyItem[] = [
+    {
+      id: 'COMP_01',
+      code: 'SAOTA-FOODS',
+      name: 'Công ty CP Thực phẩm Sao Ta (FIMEX VN)',
+      status: 'ACTIVE',
+    },
+    {
+      id: 'COMP_02',
+      code: 'MINHPHU-SEAFOOD',
+      name: 'Tập đoàn Thủy sản Minh Phú',
+      status: 'ACTIVE',
+    },
+  ];
+
+  // Danh mục Máy Hub tại xưởng chế biến
+  private readonly hubs: HubItem[] = [
+    {
+      id: 'HUB_01',
+      companyId: 'COMP_01',
+      code: 'HUB-XUONG-01',
+      name: 'Máy Hub Quản lý Xưởng Sóc Trăng',
+      ipAddress: '192.168.1.100',
+      status: 'ONLINE',
+      firmwareVersion: 'v2.1-DINI-ARGEO',
+    },
+    {
+      id: 'HUB_02',
+      companyId: 'COMP_02',
+      code: 'HUB-XUONG-02',
+      name: 'Máy Hub Quản lý Xưởng Cà Mau',
+      ipAddress: '192.168.2.100',
+      status: 'ONLINE',
+      firmwareVersion: 'v2.1-DINI-ARGEO',
+    },
+  ];
+
+  // 15 công đoạn chế biến thủy sản chuẩn PMSL (Tôm / Thủy hải sản)
+  // Kết nối trực tiếp qua Đầu cân DINI & Loadcell tại từng trạm cân
   private readonly processCatalog: ProcessTemplate[] = [
     {
-      processId: 'PROC01',
-      processName: 'Tiếp nhận nguyên liệu (Material Receiving)',
-      stationId: 'ST01',
-      stationName: 'Trạm cân Tiếp nhận',
-      productType: 'Cá nguyên liệu (PRD01)',
+      processId: 'CD001',
+      processName: 'Tiếp nhận tôm (Material Receiving)',
+      stationId: '10244156',
+      stationName: 'Trạm cân Tiếp nhận 01',
+      indicatorModel: 'DINI_ARGEO',
+      productType: 'Tôm nguyên liệu (TOM001)',
       isFinalOutput: false,
       defaultIn: 9500,
       defaultOut: 9300,
     },
     {
-      processId: 'PROC02',
+      processId: 'CD002',
       processName: 'Phân cỡ & Phân loại (Grading)',
-      stationId: 'ST02',
-      stationName: 'Trạm cân Phân cỡ',
-      productType: 'Bán thành phẩm (PRD02)',
+      stationId: '10244157',
+      stationName: 'Trạm cân Phân cỡ 02',
+      indicatorModel: 'DINI_ARGEO',
+      productType: 'Bán thành phẩm (TOM002)',
       isFinalOutput: false,
       defaultIn: 9300,
       defaultOut: 9100,
     },
     {
-      processId: 'PROC03',
+      processId: 'CD003',
       processName: 'Xếp khuôn & Chia mẻ (Stacking & Divide)',
-      stationId: 'ST03',
-      stationName: 'Trạm cân Xếp khuôn',
+      stationId: '10244158',
+      stationName: 'Trạm cân Xếp khuôn 03',
+      indicatorModel: 'DINI_ARGEO',
       isFinalOutput: false,
       defaultIn: 9100,
       defaultOut: 9000,
     },
     {
-      processId: 'PROC04',
+      processId: 'CD004',
       processName: 'Bóc vỏ & Rút chỉ (Peeling / EZP / Devein)',
-      stationId: 'ST04',
-      stationName: 'Trạm cân Bóc vỏ',
+      stationId: '10244159',
+      stationName: 'Trạm cân Bóc vỏ 04',
+      indicatorModel: 'DINI_ARGEO',
       isFinalOutput: false,
       defaultIn: 9000,
       defaultOut: 8600,
     },
     {
-      processId: 'PROC05',
+      processId: 'CD005',
       processName: 'Ngâm phụ gia (Soaking)',
-      stationId: 'ST05',
-      stationName: 'Trạm cân Ngâm phụ gia',
+      stationId: '10244160',
+      stationName: 'Trạm cân Ngâm phụ gia 05',
+      indicatorModel: 'DINI_ARGEO',
       isFinalOutput: false,
       defaultIn: 8600,
       defaultOut: 8400,
     },
     {
-      processId: 'PROC06',
+      processId: 'CD006',
       processName: 'Định hình Nobashi & Butterfly',
-      stationId: 'ST06',
-      stationName: 'Trạm cân Định hình',
+      stationId: '10244161',
+      stationName: 'Trạm cân Định hình 06',
+      indicatorModel: 'DINI_ARGEO',
       isFinalOutput: false,
       defaultIn: 3000,
       defaultOut: 2900,
     },
     {
-      processId: 'PROC07',
+      processId: 'CD007',
       processName: 'Tẩm bột (Breading)',
-      stationId: 'ST07',
-      stationName: 'Trạm cân Tẩm bột',
+      stationId: '10244162',
+      stationName: 'Trạm cân Tẩm bột 07',
+      indicatorModel: 'DINI_ARGEO',
       isFinalOutput: false,
       defaultIn: 1500,
       defaultOut: 1450,
     },
     {
-      processId: 'PROC08',
+      processId: 'CD008',
       processName: 'Chiên chín (Breaded Fry)',
-      stationId: 'ST08',
-      stationName: 'Trạm cân Chiên',
+      stationId: '10244163',
+      stationName: 'Trạm cân Chiên 08',
+      indicatorModel: 'DINI_ARGEO',
       isFinalOutput: false,
       defaultIn: 1450,
       defaultOut: 1400,
     },
     {
-      processId: 'PROC09',
+      processId: 'CD009',
       processName: 'Nấu chín PD (PD Cook)',
-      stationId: 'ST09',
-      stationName: 'Trạm cân Nấu PD',
+      stationId: '10244164',
+      stationName: 'Trạm cân Nấu PD 09',
+      indicatorModel: 'DINI_ARGEO',
       isFinalOutput: false,
       defaultIn: 2500,
       defaultOut: 2300,
     },
     {
-      processId: 'PROC10',
+      processId: 'CD010',
       processName: 'Nấu chín HLSO (HLSO Cook)',
-      stationId: 'ST10',
-      stationName: 'Trạm cân Nấu HLSO',
+      stationId: '10244165',
+      stationName: 'Trạm cân Nấu HLSO 10',
+      indicatorModel: 'DINI_ARGEO',
       isFinalOutput: false,
       defaultIn: 1500,
       defaultOut: 1400,
     },
     {
-      processId: 'PROC11',
+      processId: 'CD011',
       processName: 'Tách vỏ sau nấu (Peel After Cook)',
-      stationId: 'ST11',
-      stationName: 'Trạm cân Tách vỏ',
-      productType: 'Thành phẩm (PRD03)',
+      stationId: '10244166',
+      stationName: 'Trạm cân Tách vỏ 11',
+      indicatorModel: 'DINI_ARGEO',
+      productType: 'Thành phẩm sau nấu',
       isFinalOutput: false,
       defaultIn: 3700,
       defaultOut: 3500,
     },
     {
-      processId: 'PROC12',
+      processId: 'CD012',
       processName: 'Cấp đông xoắn tươi (Raw Spiral Freezer)',
-      stationId: 'ST12',
-      stationName: 'Trạm cân Cấp đông xoắn tươi',
+      stationId: '10244167',
+      stationName: 'Trạm cân Xoắn tươi 12',
+      indicatorModel: 'DINI_ARGEO',
       productType: 'Thành phẩm đóng gói',
       isFinalOutput: true,
       defaultIn: 1400,
       defaultOut: 1000,
     },
     {
-      processId: 'PROC13',
+      processId: 'CD013',
       processName: 'Cấp đông xoắn chiên (Fried Spiral Freezer)',
-      stationId: 'ST13',
-      stationName: 'Trạm cân Cấp đông xoắn chiên',
+      stationId: '10244168',
+      stationName: 'Trạm cân Xoắn chiên 13',
+      indicatorModel: 'DINI_ARGEO',
       productType: 'Thành phẩm đóng gói',
       isFinalOutput: true,
       defaultIn: 1400,
       defaultOut: 1100,
     },
     {
-      processId: 'PROC14',
+      processId: 'CD014',
       processName: 'Cấp đông IQF tươi (Raw IQF)',
-      stationId: 'ST14',
-      stationName: 'Trạm cân Cấp đông IQF tươi',
+      stationId: '10244169',
+      stationName: 'Trạm cân IQF tươi 14',
+      indicatorModel: 'DINI_ARGEO',
       productType: 'Thành phẩm đóng gói',
       isFinalOutput: true,
       defaultIn: 1500,
       defaultOut: 800,
     },
     {
-      processId: 'PROC15',
+      processId: 'CD015',
       processName: 'Cấp đông IQF chín (Cook IQF)',
-      stationId: 'ST15',
-      stationName: 'Trạm cân Cấp đông IQF chín',
+      stationId: '10244170',
+      stationName: 'Trạm cân IQF chín 15',
+      indicatorModel: 'DINI_ARGEO',
       productType: 'Thành phẩm đóng gói',
       isFinalOutput: true,
       defaultIn: 3500,
@@ -173,35 +237,41 @@ export class BatchDashboardService {
       'BATCH_01',
       {
         id: 'BATCH_01',
-        name: 'Lô Thủy Sản A01',
+        name: 'Lô Thủy Sản Tôm A01 (Xuất khẩu EU)',
         planWeight: 10000,
         status: 'IN_PROGRESS',
+        companyId: 'COMP_01',
+        hubId: 'HUB_01',
         createdAt: '2026-10-12T07:00:00.000Z',
       },
     ],
     [
-      'BATCH_02',
+      'loconc',
       {
-        id: 'BATCH_02',
-        name: 'Lô Nông Sản B02',
+        id: 'loconc',
+        name: 'Lô Côn Tôm B02 (PMSL Database)',
         planWeight: 15000,
         status: 'IN_PROGRESS',
+        companyId: 'COMP_01',
+        hubId: 'HUB_01',
         createdAt: '2026-10-12T08:00:00.000Z',
       },
     ],
     [
-      'BATCH_03',
+      'test',
       {
-        id: 'BATCH_03',
-        name: 'Lô Đóng Hộp C03',
-        planWeight: 8000,
+        id: 'test',
+        name: 'Lô Cân Mẫu Test Trạm Cân',
+        planWeight: 5000,
         status: 'PENDING',
+        companyId: 'COMP_02',
+        hubId: 'HUB_02',
         createdAt: '2026-10-12T08:30:00.000Z',
       },
     ],
   ]);
 
-  // In-memory mapping of batchId -> processId -> { weightIn, weightOut }
+  // In-memory process weights: batchId -> processId -> { weightIn, weightOut }
   private batchProcessWeights: Map<
     string,
     Map<string, { weightIn: number; weightOut: number }>
@@ -213,8 +283,28 @@ export class BatchDashboardService {
   // Callback listener for websocket broadcasting
   private broadcastListener?: (data: BatchKPIResponse, event: LiveWeighEvent) => void;
 
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     this.initDefaultData();
+  }
+
+  async onModuleInit() {
+    if (this.prisma.isConnected) {
+      this.isDbAvailable = true;
+      this.logger.log('✅ Connected to PostgreSQL (PMSL Schema & Multi-Tenant).');
+    } else {
+      this.isDbAvailable = false;
+      this.logger.warn(
+        '⚠️ PostgreSQL not connected. Running with PMSL Multi-Tenant In-Memory Engine.',
+      );
+    }
+  }
+
+  onModuleDestroy() {
+    for (const [batchId, timer] of this.simulationTimers.entries()) {
+      clearInterval(timer);
+      this.logger.log(`Simulation timer cleared for batch ${batchId}`);
+    }
+    this.simulationTimers.clear();
   }
 
   setBroadcastListener(
@@ -224,7 +314,7 @@ export class BatchDashboardService {
   }
 
   private initDefaultData() {
-    // Khởi tạo dữ liệu chuẩn xác cho BATCH_01 theo đề bài
+    // BATCH_01
     const b01Map = new Map<string, { weightIn: number; weightOut: number }>();
     for (const p of this.processCatalog) {
       b01Map.set(p.processId, {
@@ -234,29 +324,44 @@ export class BatchDashboardService {
     }
     this.batchProcessWeights.set('BATCH_01', b01Map);
 
-    // BATCH_02 scale theo tỷ lệ 1.5
-    const b02Map = new Map<string, { weightIn: number; weightOut: number }>();
+    // loconc (từ PMSL.sql)
+    const loconcMap = new Map<string, { weightIn: number; weightOut: number }>();
     for (const p of this.processCatalog) {
-      b02Map.set(p.processId, {
-        weightIn: Math.round(p.defaultIn * 1.5),
-        weightOut: Math.round(p.defaultOut * 1.5),
+      loconcMap.set(p.processId, {
+        weightIn: p.processId === 'CD001' ? 19.195 : 0,
+        weightOut: 0,
       });
     }
-    this.batchProcessWeights.set('BATCH_02', b02Map);
+    this.batchProcessWeights.set('loconc', loconcMap);
 
-    // BATCH_03 mới bắt đầu
-    const b03Map = new Map<string, { weightIn: number; weightOut: number }>();
+    // test (từ PMSL.sql)
+    const testMap = new Map<string, { weightIn: number; weightOut: number }>();
     for (const p of this.processCatalog) {
-      b03Map.set(p.processId, {
-        weightIn: p.processId === 'PROC01' ? 1200 : 0,
-        weightOut: p.processId === 'PROC01' ? 800 : 0,
+      testMap.set(p.processId, {
+        weightIn: p.processId === 'CD001' ? 45.0 : 0,
+        weightOut: 0,
       });
     }
-    this.batchProcessWeights.set('BATCH_03', b03Map);
+    this.batchProcessWeights.set('test', testMap);
   }
 
-  getBatches(): Batch[] {
-    return Array.from(this.batches.values());
+  getCompanies(): CompanyItem[] {
+    return this.companies;
+  }
+
+  getHubs(companyId?: string): HubItem[] {
+    if (companyId) {
+      return this.hubs.filter((h) => h.companyId === companyId);
+    }
+    return this.hubs;
+  }
+
+  getBatches(companyId?: string): Batch[] {
+    const all = Array.from(this.batches.values());
+    if (companyId) {
+      return all.filter((b) => !b.companyId || b.companyId === companyId);
+    }
+    return all;
   }
 
   getBatchSummary(batchId: string): BatchKPIResponse {
@@ -267,16 +372,22 @@ export class BatchDashboardService {
       this.batchProcessWeights.set(batch.id, weightsMap);
     }
 
+    const activeCompany =
+      this.companies.find((c) => c.id === batch.companyId) || this.companies[0];
+    const activeHub =
+      this.hubs.find((h) => h.id === batch.hubId) || this.hubs[0];
+
     let totalWeightIn = 0;
     let totalWeightOut = 0;
     let totalWipWeight = 0;
     let completedWeight = 0;
+    let rawMaterialInput = 0;
 
     let maxWip = -1;
     let bottleneck = {
-      processId: 'PROC15',
+      processId: 'CD015',
       processName: 'Cấp đông IQF chín (Cook IQF)',
-      stationName: 'Trạm cân Cấp đông IQF chín',
+      stationName: 'Trạm cân IQF chín 15',
       wipWeight: 0,
     };
 
@@ -295,6 +406,10 @@ export class BatchDashboardService {
       totalWeightIn += inWeight;
       totalWeightOut += outWeight;
       totalWipWeight += wip;
+
+      if (template.processId === 'CD001') {
+        rawMaterialInput = inWeight;
+      }
 
       if (template.isFinalOutput) {
         completedWeight += outWeight;
@@ -315,6 +430,7 @@ export class BatchDashboardService {
         processName: template.processName,
         stationId: template.stationId,
         stationName: template.stationName,
+        indicatorModel: template.indicatorModel,
         productType: template.productType,
         isFinalOutput: template.isFinalOutput,
         weightIn: inWeight,
@@ -325,7 +441,6 @@ export class BatchDashboardService {
       };
     });
 
-    // Gán trạng thái BOTTLENECK cho công đoạn có WIP lớn nhất
     for (const p of processes) {
       if (p.processId === bottleneck.processId) {
         p.status = 'BOTTLENECK';
@@ -343,13 +458,18 @@ export class BatchDashboardService {
     const remainingPct = Number(
       ((remainingWeight / planWeight) * 100).toFixed(1),
     );
+
+    // Tỷ lệ thu hồi mẻ chuẩn: Tổng thành phẩm ra (ST12-15) / Tổng nguyên liệu vào (CD001)
+    const baseInput = rawMaterialInput > 0 ? rawMaterialInput : planWeight;
     const overallYieldPct =
-      totalWeightIn > 0
-        ? Number(((totalWeightOut / totalWeightIn) * 100).toFixed(1))
+      baseInput > 0
+        ? Number(((completedWeight / baseInput) * 100).toFixed(1))
         : 0;
 
     return {
       batch,
+      activeCompany,
+      activeHub,
       planWeight,
       completedWeight,
       completedPct,
@@ -367,6 +487,96 @@ export class BatchDashboardService {
     };
   }
 
+  /**
+   * Tiếp nhận lượt cân từ Đầu cân DINI & Loadcell qua Máy Hub tại xưởng
+   */
+  async recordWeighLog(dto: RecordWeighLogDto): Promise<{
+    summary: BatchKPIResponse;
+    event: LiveWeighEvent;
+  }> {
+    const {
+      companyId,
+      hubId,
+      batchId,
+      stationId,
+      processId,
+      productId,
+      typeWeight,
+      valueWeight,
+      tareWeight = 0,
+      employeeId = 'OPERATOR',
+      indicatorModel = 'DINI_ARGEO',
+    } = dto;
+
+    const netWeight = Math.max(0, valueWeight - tareWeight);
+
+    // 1. Lưu vào PostgreSQL nếu DB sẵn sàng
+    if (this.isDbAvailable) {
+      try {
+        await this.prisma.productionWeightLog.create({
+          data: {
+            companyId,
+            hubId,
+            batchId,
+            stationId,
+            processId,
+            productId,
+            typeWeight,
+            valueWeight,
+            tareWeight,
+            employeeId,
+            timeAction: new Date(),
+          },
+        });
+      } catch (err) {
+        this.logger.warn(`Failed to write weight log to DB: ${err.message}`);
+      }
+    }
+
+    // 2. Cập nhật state in-memory
+    let weightsMap = this.batchProcessWeights.get(batchId);
+    if (!weightsMap) {
+      weightsMap = new Map();
+      this.batchProcessWeights.set(batchId, weightsMap);
+    }
+
+    const current = weightsMap.get(processId) || { weightIn: 0, weightOut: 0 };
+    if (typeWeight === 'IN') {
+      current.weightIn += netWeight;
+    } else {
+      current.weightOut += netWeight;
+      if (current.weightOut > current.weightIn) {
+        current.weightIn = current.weightOut;
+      }
+    }
+    weightsMap.set(processId, current);
+
+    const station = this.processCatalog.find((p) => p.stationId === stationId);
+    const event: LiveWeighEvent = {
+      batchId,
+      processId,
+      stationId,
+      stationName: station?.stationName || `Trạm cân ${stationId}`,
+      indicatorModel,
+      hubId: hubId || 'HUB_01',
+      hubName: 'Máy Hub Xưởng Chế Biến',
+      companyId: companyId || 'COMP_01',
+      type: typeWeight,
+      addedWeight: netWeight,
+      tareWeight,
+      netWeight,
+      timestamp: new Date().toISOString(),
+    };
+
+    const summary = this.getBatchSummary(batchId);
+
+    if (this.broadcastListener) {
+      this.broadcastListener(summary, event);
+    }
+
+    return { summary, event };
+  }
+
   simulateWeighTick(batchId: string): {
     summary: BatchKPIResponse;
     event: LiveWeighEvent;
@@ -374,13 +584,14 @@ export class BatchDashboardService {
     const batch = this.batches.get(batchId) || this.batches.get('BATCH_01')!;
     const weightsMap = this.batchProcessWeights.get(batch.id)!;
 
-    // Chọn ngẫu nhiên 1 công đoạn trong 15 công đoạn
+    // Chọn ngẫu nhiên 1 trong 15 công đoạn chuẩn PMSL
     const randomIndex = Math.floor(Math.random() * this.processCatalog.length);
     const process = this.processCatalog[randomIndex];
 
-    // Sinh lượng cân nhảy ngẫu nhiên từ 10 đến 50 kg
+    // Khối lượng cân dao động 10 - 50 kg, bì 1 - 2 kg từ Loadcell & Dini
     const addedWeight = Math.floor(Math.random() * 41) + 10;
-    // 60% xác suất là OUT, 40% là IN để dòng chảy WIP liên tục luân chuyển
+    const tareWeight = Math.floor(Math.random() * 2) + 1;
+    const netWeight = addedWeight;
     const type: 'IN' | 'OUT' = Math.random() > 0.4 ? 'OUT' : 'IN';
 
     const current = weightsMap.get(process.processId) || {
@@ -388,23 +599,46 @@ export class BatchDashboardService {
       weightOut: 0,
     };
     if (type === 'IN') {
-      current.weightIn += addedWeight;
+      current.weightIn += netWeight;
     } else {
-      current.weightOut += addedWeight;
-      // Đảm bảo OUT không vượt quá IN để WIP không âm
+      current.weightOut += netWeight;
       if (current.weightOut > current.weightIn) {
         current.weightIn = current.weightOut;
       }
     }
     weightsMap.set(process.processId, current);
 
+    if (this.isDbAvailable) {
+      this.prisma.productionWeightLog
+        .create({
+          data: {
+            batchId: batch.id,
+            stationId: process.stationId,
+            processId: process.processId,
+            productId: process.processId === 'CD001' ? 'TOM001' : 'TOM002',
+            typeWeight: type,
+            valueWeight: netWeight + tareWeight,
+            tareWeight: tareWeight,
+            employeeId: 'DINI_SIMULATOR',
+            timeAction: new Date(),
+          },
+        })
+        .catch(() => {});
+    }
+
     const event: LiveWeighEvent = {
       batchId: batch.id,
       processId: process.processId,
       stationId: process.stationId,
       stationName: process.stationName,
+      indicatorModel: process.indicatorModel,
+      hubId: batch.hubId || 'HUB_01',
+      hubName: 'Máy Hub Xưởng Chế Biến',
+      companyId: batch.companyId || 'COMP_01',
       type,
-      addedWeight,
+      addedWeight: netWeight,
+      tareWeight,
+      netWeight,
       timestamp: new Date().toISOString(),
     };
 
@@ -425,7 +659,6 @@ export class BatchDashboardService {
       this.logger.log(`Simulation stopped for batch ${batchId}`);
       return { isSimulating: false };
     } else {
-      // Stream liên tục mỗi 1.5 giây
       const timer = setInterval(() => {
         try {
           this.simulateWeighTick(batchId);
@@ -435,7 +668,9 @@ export class BatchDashboardService {
       }, 1500);
 
       this.simulationTimers.set(batchId, timer);
-      this.logger.log(`Simulation started for batch ${batchId} (interval 1.5s)`);
+      this.logger.log(
+        `Simulation started for batch ${batchId} (interval 1.5s, PMSL DINI model)`,
+      );
       return { isSimulating: true };
     }
   }

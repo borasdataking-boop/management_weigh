@@ -3,11 +3,16 @@ import {
   Get,
   Post,
   Param,
+  Body,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { BatchDashboardService } from './batch-dashboard.service';
-import { Batch, BatchKPIResponse } from './batch-dashboard.interface';
+import {
+  Batch,
+  BatchKPIResponse,
+  RecordWeighLogDto,
+} from './batch-dashboard.interface';
 
 @Controller('api/batches')
 export class BatchDashboardController {
@@ -33,5 +38,11 @@ export class BatchDashboardController {
   @HttpCode(HttpStatus.OK)
   simulateTick(@Param('id') id: string) {
     return this.dashboardService.simulateWeighTick(id);
+  }
+
+  @Post('weigh-log')
+  @HttpCode(HttpStatus.CREATED)
+  async recordWeighLog(@Body() dto: RecordWeighLogDto) {
+    return await this.dashboardService.recordWeighLog(dto);
   }
 }

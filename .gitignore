@@ -1,13 +1,18 @@
-# Tệp môi trường nhạy cảm
+# Environment
 .env
 .env.*
+.env.local
 
-# Thư mục phụ thuộc / build (nếu có dùng sau này)
+# Dependencies & Build
 node_modules/
 dist/
+build/
+.next/
+out/
+.turbo/
 __pycache__/
 
-# Log & OS
+# Logs & OS
 *.log
 .DS_Store
 Thumbs.db

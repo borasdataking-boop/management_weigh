@@ -8,198 +8,163 @@ generator client {
 }
 
 // ==========================================
-// ENUMS
-// ==========================================
-
-enum CompanyStatus {
-  ACTIVE
-  SUSPENDED
-  EXPIRED
-}
-
-enum UserRole {
-  SUPERADMIN
-  COMPANY_ADMIN
-  SCALE_OPERATOR
-  VIEWER
-}
-
-enum DeviceStatus {
-  ONLINE
-  OFFLINE
-  MAINTENANCE
-  ERROR
-}
-
-enum TransactionStatus {
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-  REJECTED
-}
-
-enum WeightUnit {
-  KG
-  TON
-  LB
-}
-
-// ==========================================
-// 1. TENANT & RBAC LAYER
+// 1. SUPERADMIN & MULTI-TENANT LAYER
+// (Superadmin quản lý các Công ty khách hàng mua phần mềm)
 // ==========================================
 
 model Company {
-  id          String        @id @default(uuid()) @db.Uuid
-  code        String        @unique @db.VarChar(50) // E.g., 'CP-LOGISTICS', 'HOAPHAT-STEEL'
-  name        String        @db.VarChar(255)
-  status      CompanyStatus @default(ACTIVE)
-  maxHubs     Int           @default(5)
-  contactEmail String?      @db.VarChar(255)
-  contactPhone String?      @db.VarChar(50)
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique @db.VarChar(50) // VD: 'MINHPHU-SEAFOOD', 'SAOTA-FOODS'
+  name      String   @db.VarChar(255)
+  status    String   @default("ACTIVE") @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relationships
-  users             User[]
-  hubs              Hub[]
-  scales            Scale[]
-  scaleTransactions ScaleTransaction[]
-  auditLogs         AuditLog[]
+  hubs       Hub[]
+  weightLogs ProductionWeightLog[]
 
   @@map("companies")
 }
 
-model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  companyId    String?   @map("company_id") @db.Uuid // Nullable for Platform Superadmin
-  email        String    @unique @db.VarChar(255)
-  passwordHash String    @map("password_hash") @db.VarChar(255)
-  fullName     String    @map("full_name") @db.VarChar(100)
-  role         UserRole  @default(VIEWER)
-  isActive     Boolean   @default(true) @map("is_active")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  // Relationships
-  company   Company?   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  auditLogs AuditLog[]
-
-  @@index([companyId])
-  @@index([role])
-  @@map("users")
-}
-
 // ==========================================
-// 2. EDGE HUB & SCALE DEVICE LAYER
+// 2. EDGE HUB LAYER (Máy Hub tại xưởng chế biến)
 // ==========================================
 
 model Hub {
-  id              String       @id @default(uuid()) @db.Uuid
-  companyId       String       @map("company_id") @db.Uuid
-  code            String       @unique @db.VarChar(50) // Unique hardware/serial code e.g. 'HUB-HANOI-01'
-  name            String       @db.VarChar(150)
-  secretKeyHash   String       @map("secret_key_hash") @db.VarChar(255) // For mTLS or HMAC auth
-  ipAddress       String?      @map("ip_address") @db.VarChar(45) // IPv4 or IPv6
-  status          DeviceStatus @default(OFFLINE)
-  lastHeartbeat   DateTime?    @map("last_heartbeat")
-  firmwareVersion String?      @map("firmware_version") @db.VarChar(50)
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  code            String    @unique @db.VarChar(50) // VD: 'HUB-XUONG-01'
+  name            String    @db.VarChar(150) // VD: 'Máy Hub Quản lý Xưởng 1'
+  ipAddress       String?   @map("ip_address") @db.VarChar(45)
+  status          String    @default("ONLINE") @db.VarChar(20) // 'ONLINE' | 'OFFLINE'
+  lastSeenAt      DateTime? @map("last_seen_at") @db.Timestamptz
+  firmwareVersion String?   @default("v2.1-DINI") @map("firmware_version") @db.VarChar(50)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relationships
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  scales  Scale[]
+  company    Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stations   StationWeigh[]
+  operators  PmshubOperator[]
+  weightLogs ProductionWeightLog[]
 
   @@index([companyId])
-  @@index([status])
   @@map("hubs")
 }
 
-model Scale {
-  id             String       @id @default(uuid()) @db.Uuid
-  companyId      String       @map("company_id") @db.Uuid
-  hubId          String       @map("hub_id") @db.Uuid
-  code           String       @db.VarChar(50) // e.g. 'SCALE-01'
-  name           String       @db.VarChar(150)
-  indicatorModel String       @map("indicator_model") @db.VarChar(100) // e.g. 'Yaohua-A12E', 'Toledo-T800', 'Keli-XK3118'
-  maxCapacity    Float        @map("max_capacity") // e.g., 80000 (80 Tons)
-  divisionStep   Float        @default(10) @map("division_step") // Division 'd' e.g. 10kg, 20kg
-  unit           WeightUnit   @default(KG)
-  baudRate       Int          @default(9600) @map("baud_rate")
-  portName       String       @default("COM1") @map("port_name") @db.VarChar(50) // e.g., '/dev/ttyUSB0' or 'COM1'
-  overloadLimit  Float?       @map("overload_limit") // Capacity + allowed margin
-  status         DeviceStatus @default(OFFLINE)
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+// ==========================================
+// 3. PMSL CORE MASTER DATA (Công đoạn, Sản phẩm, Định tuyến)
+// ==========================================
+
+model Process {
+  processId   String   @id @map("process_id") @db.VarChar(50)
+  processName String   @map("process_name") @db.VarChar(100)
 
   // Relationships
-  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  hub          Hub                @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  transactions ScaleTransaction[]
+  stations   StationWeigh[]
+  weightLogs ProductionWeightLog[]
 
-  @@unique([hubId, code])
+  @@map("process")
+}
+
+model Product {
+  productId   String   @id @map("product_id") @db.VarChar(50)
+  productName String   @map("product_name") @db.VarChar(100)
+  isEnd       Boolean? @default(false) @map("is_end")
+
+  // Relationships
+  weightLogs ProductionWeightLog[]
+
+  @@map("product")
+}
+
+model MappingProcess {
+  mappingId     Int    @id @default(autoincrement()) @map("mapping_id")
+  fromProcessId String @map("from_process_id") @db.VarChar(50)
+  toProcessId   String @map("to_process_id") @db.VarChar(50)
+
+  @@map("mapping_process")
+}
+
+// ==========================================
+// 4. PMSL TRẠM CÂN KẾT NỐI ĐẦU CÂN DINI & LOADCELL TẠI XƯỞNG
+// ==========================================
+
+model StationWeigh {
+  stationId      String    @id @map("station_id") @db.VarChar(50)
+  stationName    String    @map("station_name") @db.VarChar(100)
+  processId      String    @map("process_id") @db.VarChar(50)
+  hubId          String?   @map("hub_id") @db.Uuid // Máy Hub tại xưởng quản lý trạm này
+  indicatorModel String    @default("DINI_ARGEO") @map("indicator_model") @db.VarChar(50) // Đầu cân Dini qua Loadcell
+  isActive       Boolean   @default(true) @map("is_active")
+  lastSeenAt     DateTime? @map("last_seen_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relationships
+  process    Process               @relation(fields: [processId], references: [processId], onDelete: Cascade)
+  hub        Hub?                  @relation(fields: [hubId], references: [id], onDelete: SetNull)
+  weightLogs ProductionWeightLog[]
+
+  @@index([processId], name: "station_weigh_process_idx")
+  @@index([hubId])
+  @@map("station_weigh")
+}
+
+// ==========================================
+// 5. PMSL OPERATOR TẠI MÁY HUB XƯỞNG
+// ==========================================
+
+model PmshubOperator {
+  operatorId     BigInt    @id @default(autoincrement()) @map("operator_id")
+  hubId          String?   @map("hub_id") @db.Uuid
+  username       String    @unique @db.VarChar(64)
+  passwordHash   String    @map("password_hash")
+  isActive       Boolean   @default(true) @map("is_active")
+  authVersion    Int       @default(1) @map("auth_version")
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  lockedUntil    DateTime? @map("locked_until") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  lastLoginAt    DateTime? @map("last_login_at") @db.Timestamptz
+
+  // Relationships
+  hub Hub? @relation(fields: [hubId], references: [id], onDelete: SetNull)
+
+  @@map("pmshub_operator")
+}
+
+// ==========================================
+// 6. PMSL PRODUCTION WEIGHT LOGS (Nhật ký cân IN/OUT từ Loadcell & DINI)
+// ==========================================
+
+model ProductionWeightLog {
+  logId           BigInt   @id @default(autoincrement()) @map("log_id")
+  companyId       String?  @map("company_id") @db.Uuid
+  hubId           String?  @map("hub_id") @db.Uuid
+  batchId         String   @map("batch_id") @db.VarChar(50)
+  stationId       String   @map("station_id") @db.VarChar(50)
+  processId       String   @map("process_id") @db.VarChar(50)
+  productId       String   @map("product_id") @db.VarChar(50)
+  typeWeight      String   @map("type_weight") @db.VarChar(10) // 'IN' | 'OUT'
+  valueWeight     Decimal  @map("value_weight") @db.Decimal(12, 3) // Khối lượng tổng từ Loadcell & DINI
+  tareWeight      Decimal  @default(0) @map("tare_weight") @db.Decimal(12, 3) // Bì khay/rổ
+  timeAction      DateTime @default(now()) @map("time_action") @db.Timestamptz
+  employeeId      String?  @map("employee_id") @db.VarChar(50)
+  sourceMessageId String?  @map("source_message_id") @db.VarChar(150)
+
+  // Relationships
+  company Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  hub     Hub?          @relation(fields: [hubId], references: [id], onDelete: SetNull)
+  process Process?      @relation(fields: [processId], references: [processId], onDelete: SetNull)
+  station StationWeigh? @relation(fields: [stationId], references: [stationId], onDelete: SetNull)
+  product Product?      @relation(fields: [productId], references: [productId], onDelete: SetNull)
+
+  @@unique([stationId, sourceMessageId], name: "ux_weight_logs_station_message")
   @@index([companyId])
   @@index([hubId])
-  @@map("scales")
-}
-
-// ==========================================
-// 3. TICKETING & TRANSACTION LAYER
-// ==========================================
-
-model ScaleTransaction {
-  id                String            @id @default(uuid()) @db.Uuid
-  companyId         String            @map("company_id") @db.Uuid
-  scaleId           String            @map("scale_id") @db.Uuid
-  transactionUuid   String            @unique @map("transaction_uuid") @db.VarChar(64) // Idempotency key from Edge Hub
-  ticketNumber      String            @map("ticket_number") @db.VarChar(50) // Human readable e.g., 'TKT-20261012-0001'
-  vehiclePlate      String            @map("vehicle_plate") @db.VarChar(30)
-  driverName        String?           @map("driver_name") @db.VarChar(100)
-  customerName      String?           @map("customer_name") @db.VarChar(150)
-  productType       String?           @map("product_type") @db.VarChar(100)
-  grossWeight       Float             @map("gross_weight") // Trọng lượng tổng (xe + hàng)
-  tareWeight        Float             @map("tare_weight") // Trọng lượng bì (xe rỗng)
-  netWeight         Float             @map("net_weight") // Trọng lượng hàng ròng = |gross - tare|
-  unit              WeightUnit        @default(KG)
-  status            TransactionStatus @default(COMPLETED)
-  capturedImageUrls String[]          @default([]) @map("captured_image_urls") // Snapshots from IP camera at weighbridge
-  syncedFromOffline Boolean           @default(false) @map("synced_from_offline")
-  weighedAt         DateTime          @default(now()) @map("weighed_at")
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
-
-  // Relationships
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  scale   Scale   @relation(fields: [scaleId], references: [id], onDelete: Cascade)
-
-  @@unique([companyId, ticketNumber])
-  @@index([companyId])
-  @@index([scaleId])
-  @@index([vehiclePlate])
-  @@index([createdAt])
-  @@map("scale_transactions")
-}
-
-// ==========================================
-// 4. AUDIT LOG & COMPLIANCE LAYER
-// ==========================================
-
-model AuditLog {
-  id        String   @id @default(uuid()) @db.Uuid
-  companyId String?  @map("company_id") @db.Uuid // Nullable if system-level
-  userId    String?  @map("user_id") @db.Uuid
-  action    String   @db.VarChar(100) // E.g., 'TICKET_CREATE', 'CALIBRATION_UPDATE', 'HUB_REBOOT'
-  target    String   @db.VarChar(100) // E.g., 'ScaleTransaction:UUID', 'Hub:01'
-  metadata  Json?    @db.JsonB
-  ipAddress String?  @map("ip_address") @db.VarChar(45)
-  createdAt DateTime @default(now()) @map("created_at")
-
-  // Relationships
-  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([companyId])
-  @@index([userId])
-  @@index([action])
-  @@map("audit_logs")
+  @@index([batchId])
+  @@index([processId])
+  @@index([stationId])
+  @@index([timeAction])
+  @@map("production_weight_logs")
 }

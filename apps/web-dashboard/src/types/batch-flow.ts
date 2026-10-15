@@ -1,8 +1,27 @@
+export interface CompanyItem {
+  id: string;
+  code: string;
+  name: string;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface HubItem {
+  id: string;
+  companyId: string;
+  code: string;
+  name: string;
+  ipAddress?: string;
+  status: 'ONLINE' | 'OFFLINE';
+  firmwareVersion?: string;
+}
+
 export interface Batch {
   id: string;
   name: string;
   planWeight: number;
   status: 'IN_PROGRESS' | 'COMPLETED' | 'PENDING';
+  companyId?: string;
+  hubId?: string;
   createdAt: string;
 }
 
@@ -11,6 +30,7 @@ export interface ProcessFlowItem {
   processName: string;
   stationId: string;
   stationName: string;
+  indicatorModel?: string; // DINI ARGEO
   productType?: string;
   isFinalOutput: boolean;
   weightIn: number;
@@ -22,6 +42,8 @@ export interface ProcessFlowItem {
 
 export interface BatchKPIResponse {
   batch: Batch;
+  activeCompany?: CompanyItem;
+  activeHub?: HubItem;
   planWeight: number;
   completedWeight: number;
   completedPct: number;
@@ -48,7 +70,13 @@ export interface LiveWeighEvent {
   processId: string;
   stationId: string;
   stationName: string;
+  indicatorModel?: string; // Dini Argeo
+  hubId?: string;
+  hubName?: string;
+  companyId?: string;
   type: 'IN' | 'OUT';
   addedWeight: number;
+  tareWeight?: number;
+  netWeight?: number;
   timestamp: string;
 }
